@@ -1,14 +1,15 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"log/slog"
 	"os"
-	"time"
 
 	"github.com/fbufler/comdirect/pkg/comdirect"
 )
 
+// e2e test
 func main() {
 	slog.SetLogLoggerLevel(slog.LevelDebug)
 	// load from env
@@ -36,44 +37,58 @@ func main() {
 	// create client
 	client := comdirect.NewClient(config)
 
-	// authenticate
-	authResponse, err := client.NewToken()
+	// Authenticate
+	token, err := client.Authenticate(twoFaHandler)
 	if err != nil {
 		panic(err)
 	}
 
-	sessions, err := client.Sessions(authResponse)
+	// Refresh token
+	token, err = client.RefreshToken(token)
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println(sessions)
 
-	challengeID, err := client.ValidateSession(authResponse, sessions[0].Identifier)
+	// Get account balances
+	accountBalances, err := client.AccountBalances(token, nil)
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println(challengeID)
 
-	// sleep for 10 seconds
-	fmt.Println("Please accept the challenge in the comdirect app")
-	time.Sleep(10 * time.Second)
+	slog.Info(fmt.Sprintf("Account balances: %v", accountBalances))
 
-	newSession, err := client.ActivateSession(authResponse, sessions[0].Identifier, challengeID)
+	// Get account balance
+	relevantAccountID := accountBalances.Values[1].AccountID
+	accountBalance, err := client.AccountBalance(token, relevantAccountID)
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println(newSession)
+	slog.Info(fmt.Sprintf("Account balance: %v", accountBalance))
 
-	// get account balances TODO: Broken
-	accountBalances, err := client.AccountBalance(authResponse)
+	// Get transactions
+	transactions, err := client.AccountTransactions(token, relevantAccountID, comdirect.TransactionStateBooked, nil)
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println(accountBalances)
+
+	slog.Info(fmt.Sprintf("Transactions: %v", transactions))
 
 	// Revoke token
-	err = client.RevokeToken(authResponse)
+	err = client.RevokeToken(token)
 	if err != nil {
 		panic(err)
 	}
+}
+
+func twoFaHandler(tanHeader comdirect.TANHeader) error {
+	slog.Info("Please verify the TAN")
+	slog.Info(fmt.Sprintf("TAN - id: %s - typ: %s", tanHeader.Id, tanHeader.Typ))
+	// wait for user input
+
+	slog.Info("Press enter to continue")
+	input := bufio.NewScanner(os.Stdin)
+	input.Scan()
+
+	slog.Info("Continuing")
+	return nil
 }

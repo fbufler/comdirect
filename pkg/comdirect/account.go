@@ -4,10 +4,49 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 )
 
-func (c *Client) AccountBalance(token *AuthToken) ([]interface{}, error) {
+const (
+	includeProperty = "with-attr"
+	excludeProperty = "without-attr"
+)
+
+type Projection struct {
+	IncludeProperties []string
+	ExcludeProperties []string
+}
+
+func (p *Projection) queryParams() []string {
+	var params []string
+
+	if len(p.IncludeProperties) > 0 {
+		params = append(params, fmt.Sprintf("%s=%s", includeProperty, strings.Join(p.IncludeProperties, ",")))
+	}
+
+	if len(p.ExcludeProperties) > 0 {
+		params = append(params, fmt.Sprintf("%s=%s", excludeProperty, strings.Join(p.ExcludeProperties, ",")))
+	}
+
+	return params
+}
+
+/*
+AccountBalances returns the balances of all accounts of the user.
+A projection can be used to include or exclude certain properties.
+Allowed projection properties are:
+- ExcludeProperties: "account"
+For more information see https://www.comdirect.de/cms/media/comdirect_REST_API_Dokumentation.pdf
+*/
+func (c *Client) AccountBalances(token *AuthToken, projection *Projection) (*AccountBalances, error) {
 	url := fmt.Sprintf("%s/banking/clients/user/v2/accounts/balances", c.config.APIURL)
+	if projection != nil {
+		queryParams := projection.queryParams()
+		if len(queryParams) > 0 {
+			url += fmt.Sprintf("?%s", strings.Join(queryParams, "&"))
+		}
+	}
+
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
@@ -15,17 +54,92 @@ func (c *Client) AccountBalance(token *AuthToken) ([]interface{}, error) {
 
 	addXHTTPRequestInfoHeader(req, token.SessionGUID, token.RequestID)
 	req.Header.Add("Accept", "application/json")
-	req.Header.Add("Cookie", fmt.Sprintf("qSession=%s", token.SessionGUID))
 
 	resBody, _, err := c.doAuthenticatedRequest(req, token, http.StatusOK)
 	if err != nil {
 		return nil, err
 	}
 
-	var accountBalances []interface{}
+	var accountBalances AccountBalances
 	if err := json.NewDecoder(resBody).Decode(&accountBalances); err != nil {
 		return nil, err
 	}
 
-	return accountBalances, nil
+	return &accountBalances, nil
+}
+
+/*
+AccountBalance returns the balance of a specific account.
+For more information see https://www.comdirect.de/cms/media/comdirect_REST_API_Dokumentation.pdf
+*/
+func (c *Client) AccountBalance(token *AuthToken, accountID string) (*AccountBalance, error) {
+	url := fmt.Sprintf("%s/banking/v2/accounts/%s/balances", c.config.APIURL, accountID)
+
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	addXHTTPRequestInfoHeader(req, token.SessionGUID, token.RequestID)
+	req.Header.Add("Accept", "application/json")
+
+	resBody, _, err := c.doAuthenticatedRequest(req, token, http.StatusOK)
+	if err != nil {
+		return nil, err
+	}
+
+	var accountBalance AccountBalance
+	if err := json.NewDecoder(resBody).Decode(&accountBalance); err != nil {
+		return nil, err
+	}
+
+	return &accountBalance, nil
+}
+
+type TransactionState string
+
+const (
+	TransactionStateBoth      TransactionState = "BOTH"
+	TransactionStateBooked    TransactionState = "BOOKED"
+	TransactionStateNotBooked TransactionState = "NOTBOOKED"
+)
+
+/*
+AccountTransactions returns the transactions of a specific account.
+A projection can be used to include or exclude certain properties.
+Allowed projection properties are:
+- IncludeProperties: "account"
+For more information see https://www.comdirect.de/cms/media/comdirect_REST_API_Dokumentation.pdf
+*/
+func (c *Client) AccountTransactions(token *AuthToken, accountID string, transactionState TransactionState, projection *Projection) (*AccountTransactions, error) {
+	url := fmt.Sprintf("%s/banking/v1/accounts/%s/transactions", c.config.APIURL, accountID)
+
+	queryParams := []string{
+		fmt.Sprintf("transactionState=%s", transactionState),
+	}
+	if projection != nil {
+		queryParams = append(queryParams, projection.queryParams()...)
+	}
+
+	url += fmt.Sprintf("?%s", strings.Join(queryParams, "&"))
+
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	addXHTTPRequestInfoHeader(req, token.SessionGUID, token.RequestID)
+	req.Header.Add("Accept", "application/json")
+
+	resBody, _, err := c.doAuthenticatedRequest(req, token, http.StatusOK)
+	if err != nil {
+		return nil, err
+	}
+
+	var accountTransactions AccountTransactions
+	if err := json.NewDecoder(resBody).Decode(&accountTransactions); err != nil {
+		return nil, err
+	}
+
+	return &accountTransactions, nil
 }

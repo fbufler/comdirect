@@ -12,11 +12,6 @@ const (
 	XOnceAuthenticationHeader     = "x-once-authentication"
 )
 
-type xOnceAuthenticationInfo struct {
-	ChallengeID  string `json:"id"`
-	ChallengeTyp string `json:"typ"`
-}
-
 func addAuthorizationHeader(req *http.Request, token *AuthToken) {
 	req.Header.Add(authorizationHeader, fmt.Sprintf("Bearer %s", token.AccessToken))
 }

@@ -33,13 +33,14 @@ func (c *Client) doAuthenticatedRequest(req *http.Request, token *AuthToken, exp
 }
 
 func handleRequestError(res *http.Response) error {
-	statusErr := fmt.Errorf("auth failed with status code %d", res.StatusCode)
+	statusErr := fmt.Errorf("request failed with status code %d", res.StatusCode)
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		return statusErr
 	}
-
-	slog.Debug(fmt.Sprintf("Body: %v", body))
+	if len(body) != 0 {
+		slog.Debug(string(body))
+	}
 	return statusErr
 }
 
