@@ -1,8 +1,16 @@
 builds:
-  - # If true, skip the build.
-    # Useful for library projects.
-    # Default is false
-    skip: true
+  - main: ./cmd/main.go
+    ldflags: -s -w
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    env:
+      - CGO_ENABLED=0
+    binary: comdirect
 
 changelog:
   # Set it to true if you wish to skip the changelog generation.

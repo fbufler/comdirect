@@ -1,0 +1,7 @@
+api-url: "https://api.comdirect.de/api"
+token-url: "https://api.comdirect.de/oauth/token"
+revoke-token-url: "https://api.comdirect.de/oauth/revoke"
+client-id: "your-client-id"
+client-secret: "your-client-secret"
+zugangsnummer: "your-zugangsnummer"
+pin: "your-pin"
