@@ -12,7 +12,10 @@ import (
 func (c *Client) doAuthenticatedRequest(req *http.Request, token *AuthToken, expectedStatus int) (io.Reader, *http.Header, error) {
 	c.ensureValidToken(token)
 	addAuthorizationHeader(req, token)
+	c.newAuthenticatedRequest()
+	token.Lock()
 	res, err := c.client.Do(req)
+	token.Unlock()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -30,6 +33,14 @@ func (c *Client) doAuthenticatedRequest(req *http.Request, token *AuthToken, exp
 
 	reader := bytes.NewReader(body)
 	return reader, &res.Header, nil
+}
+
+func (c *Client) newAuthenticatedRequest() {
+	currentTimeToSecond := time.Now().Truncate(time.Second)
+	c.requestMonitor[currentTimeToSecond]++
+	if c.requestMonitor[currentTimeToSecond] > c.requestLimitPerSecond {
+		slog.Warn(fmt.Sprintf("Reaching request limit of %d for current second: %s", c.requestLimitPerSecond, currentTimeToSecond))
+	}
 }
 
 func handleRequestError(res *http.Response) error {

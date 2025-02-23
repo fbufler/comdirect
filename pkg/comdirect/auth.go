@@ -2,6 +2,7 @@ package comdirect
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -11,6 +12,11 @@ import (
 	"github.com/google/uuid"
 )
 
+// Authenticate authenticates the user and returns a token.
+// Each call to Authenticate requires creates a new session.
+// The twoFaHandler is called when a two factor authentication is required.
+// If the challenge is handled correctly, the token is returned.
+// For more information see https://www.comdirect.de/cms/media/comdirect_REST_API_Dokumentation.pdf
 func (c *Client) Authenticate(twoFaHandler func(tanHeader TANHeader) error) (*AuthToken, error) {
 	token, err := c.newInitialToken()
 	if err != nil {
@@ -50,9 +56,16 @@ func (c *Client) Authenticate(twoFaHandler func(tanHeader TANHeader) error) (*Au
 		return nil, err
 	}
 
+	c.tokenStore[secondaryToken.SessionGUID] = secondaryToken
+
 	return secondaryToken, nil
 }
 
+// RefreshToken refreshes the token and returns a new token.
+// Berfore each authenticated request, the token is checked if it is expired and automatically refreshed.
+// If the refresh token is expired as well, the user has to authenticate again.
+// For more information see https://www.comdirect.de/cms/media/comdirect_REST_API_Dokumentation.pdf
+// If a token is used in a current request, the token is locked and cannot be refreshed, a LockedTokenError is returned. In this case try again.
 func (c *Client) RefreshToken(token *AuthToken) (*AuthToken, error) {
 	slog.Debug("Refreshing token")
 	payload := fmt.Sprintf("client_id=%s&client_secret=%s&grant_type=refresh_token&refresh_token=%s", c.config.ClientID, c.config.ClientSecret, token.RefreshToken)
@@ -66,6 +79,9 @@ func (c *Client) RefreshToken(token *AuthToken) (*AuthToken, error) {
 	req.Header.Add("Accept", "application/json")
 
 	creationTime := time.Now()
+	if token.IsLocked() {
+		return nil, errors.New(LockedTokenError)
+	}
 	res, err := c.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -87,7 +103,7 @@ func (c *Client) RefreshToken(token *AuthToken) (*AuthToken, error) {
 		return nil, fmt.Errorf("missing access token in response")
 	}
 
-	return &AuthToken{
+	newToken := &AuthToken{
 		AccessToken:  authResponse.AccessToken,
 		ExpiresIn:    authResponse.ExpiresIn,
 		RefreshToken: authResponse.RefreshToken,
@@ -95,12 +111,16 @@ func (c *Client) RefreshToken(token *AuthToken) (*AuthToken, error) {
 		Scope:        authResponse.Scope,
 		SessionGUID:  token.SessionGUID,
 		RequestID:    token.RequestID,
-	}, nil
+	}
+
+	c.tokenStore[newToken.SessionGUID] = newToken
+	return newToken, nil
 }
 
+// RevokeToken revokes the token.
+// For more information see https://www.comdirect.de/cms/media/comdirect_REST_API_Dokumentation.pdf
 func (c *Client) RevokeToken(token *AuthToken) error {
 	slog.Debug("Revoking token")
-	c.ensureValidToken(token)
 	req, err := http.NewRequest(http.MethodDelete, c.config.RevokeTokenURL, nil)
 	if err != nil {
 		return err
@@ -113,6 +133,7 @@ func (c *Client) RevokeToken(token *AuthToken) error {
 		return err
 	}
 
+	delete(c.tokenStore, token.SessionGUID)
 	return nil
 }
 
@@ -317,7 +338,7 @@ func (c *Client) newSecondaryToken(token *AuthToken) (*AuthToken, error) {
 }
 
 func (c *Client) ensureValidToken(token *AuthToken) error {
-	if time.Now().After(token.CreationTime.Add(time.Duration(token.ExpiresIn) * time.Second)) {
+	if token.IsExpired() {
 		slog.Debug("Token expired, refreshing")
 		newToken, err := c.RefreshToken(token)
 		if err != nil {

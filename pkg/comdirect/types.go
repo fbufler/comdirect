@@ -10,6 +10,27 @@ type AuthToken struct {
 	Scope        string
 	SessionGUID  string
 	RequestID    string
+	locked       bool
+}
+
+func (t *AuthToken) IsExpired() bool {
+	return time.Since(t.CreationTime).Seconds() > float64(t.ExpiresIn)
+}
+
+func (t *AuthToken) WillExpireIn(seconds time.Duration) bool {
+	return time.Since(t.CreationTime).Seconds()+seconds.Seconds() > float64(t.ExpiresIn)
+}
+
+func (t *AuthToken) Lock() {
+	t.locked = true
+}
+
+func (t *AuthToken) Unlock() {
+	t.locked = false
+}
+
+func (t *AuthToken) IsLocked() bool {
+	return t.locked
 }
 
 type authResponse struct {

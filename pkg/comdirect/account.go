@@ -31,13 +31,11 @@ func (p *Projection) queryParams() []string {
 	return params
 }
 
-/*
-AccountBalances returns the balances of all accounts of the user.
-A projection can be used to include or exclude certain properties.
-Allowed projection properties are:
-- ExcludeProperties: "account"
-For more information see https://www.comdirect.de/cms/media/comdirect_REST_API_Dokumentation.pdf
-*/
+// AccountBalances returns the balances of all accounts of the user.
+// A projection can be used to include or exclude certain properties.
+// Allowed projection properties are:
+// - ExcludeProperties: "account"
+// For more information see https://www.comdirect.de/cms/media/comdirect_REST_API_Dokumentation.pdf
 func (c *Client) AccountBalances(token *AuthToken, projection *Projection) (*AccountBalances, error) {
 	url := fmt.Sprintf("%s/banking/clients/user/v2/accounts/balances", c.config.APIURL)
 	if projection != nil {
@@ -68,10 +66,8 @@ func (c *Client) AccountBalances(token *AuthToken, projection *Projection) (*Acc
 	return &accountBalances, nil
 }
 
-/*
-AccountBalance returns the balance of a specific account.
-For more information see https://www.comdirect.de/cms/media/comdirect_REST_API_Dokumentation.pdf
-*/
+// AccountBalance returns the balance of a specific account.
+// For more information see https://www.comdirect.de/cms/media/comdirect_REST_API_Dokumentation.pdf
 func (c *Client) AccountBalance(token *AuthToken, accountID string) (*AccountBalance, error) {
 	url := fmt.Sprintf("%s/banking/v2/accounts/%s/balances", c.config.APIURL, accountID)
 
@@ -104,13 +100,11 @@ const (
 	TransactionStateNotBooked TransactionState = "NOTBOOKED"
 )
 
-/*
-AccountTransactions returns the transactions of a specific account.
-A projection can be used to include or exclude certain properties.
-Allowed projection properties are:
-- IncludeProperties: "account"
-For more information see https://www.comdirect.de/cms/media/comdirect_REST_API_Dokumentation.pdf
-*/
+// AccountTransactions returns the transactions of a specific account.
+// A projection can be used to include or exclude certain properties.
+// Allowed projection properties are:
+// - IncludeProperties: "account"
+// For more information see https://www.comdirect.de/cms/media/comdirect_REST_API_Dokumentation.pdf
 func (c *Client) AccountTransactions(token *AuthToken, accountID string, transactionState TransactionState, projection *Projection) (*AccountTransactions, error) {
 	url := fmt.Sprintf("%s/banking/v1/accounts/%s/transactions", c.config.APIURL, accountID)
 
