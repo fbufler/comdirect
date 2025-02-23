@@ -61,18 +61,11 @@ func (c *Client) RevokeToken(token *AuthToken) error {
 		return err
 	}
 
-	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token.AccessToken))
 	req.Header.Add("Accept", "application/json")
 
-	res, err := c.client.Do(req)
+	_, _, err = c.doAuthenticatedRequest(req, token, http.StatusNoContent)
 	if err != nil {
 		return err
-	}
-
-	defer res.Body.Close()
-
-	if res.StatusCode != 204 {
-		return handleRequestError(res)
 	}
 
 	return nil
@@ -87,24 +80,17 @@ func (c *Client) RefreshToken(token *AuthToken) (*AuthToken, error) {
 		return nil, err
 	}
 
-	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token.AccessToken))
 	req.Header.Add("Accept", "application/json")
 
 	creationTime := time.Now()
-	res, err := c.client.Do(req)
+	resBody, _, err := c.doAuthenticatedRequest(req, token, http.StatusOK)
 	if err != nil {
 		return nil, err
 	}
 
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusOK {
-		return nil, handleRequestError(res)
-	}
-
 	var authResponse AuthResponse
 
-	if err := json.NewDecoder(res.Body).Decode(&authResponse); err != nil {
+	if err := json.NewDecoder(resBody).Decode(&authResponse); err != nil {
 		return nil, err
 	}
 
@@ -125,66 +111,120 @@ func (c *Client) Sessions(token *AuthToken) ([]Session, error) {
 		return nil, err
 	}
 
-	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token.AccessToken))
+	addXHTTPRequestInfoHeader(req, token.SessionGUID, token.RequestID)
 	req.Header.Add("Accept", "application/json")
-	req.Header.Add("x-http-request-info", fmt.Sprintf("{\"clientRequestId\":{\"sessionId\":\"%s\",\"requestId\":\"%s\"}}", token.SessionGUID, token.RequestID))
 	req.Header.Add("Cookie", fmt.Sprintf("qSession=%s", token.SessionGUID))
 
-	res, err := c.client.Do(req)
+	resBody, _, err := c.doAuthenticatedRequest(req, token, http.StatusOK)
 	if err != nil {
 		return nil, err
 	}
 
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusOK {
-		return nil, handleRequestError(res)
-	}
-
 	var sessions []Session
-	if err := json.NewDecoder(res.Body).Decode(&sessions); err != nil {
+	if err := json.NewDecoder(resBody).Decode(&sessions); err != nil {
 		return nil, err
 	}
 
 	return sessions, nil
 }
 
-func (c *Client) ValidateSession(token *AuthToken, currentSession *Session) (interface{}, error) {
+func (c *Client) ValidateSession(token *AuthToken, sessionID string) (string, error) {
 	slog.Debug("Validating session")
-	c.ensureValidToken(token)
+	currentSession := Session{Identifier: sessionID}
+	currentSession.Activated2FA = true
+	currentSession.SessionTanActive = true
+
 	url := fmt.Sprintf("%s/session/clients/user/v1/sessions/%s/validate", c.config.APIURL, currentSession.Identifier)
+	payload, err := json.Marshal(currentSession)
+	if err != nil {
+		return "", err
+	}
+	body := strings.NewReader(string(payload))
+	req, err := http.NewRequest(http.MethodPost, url, body)
+	if err != nil {
+		return "", err
+	}
+
+	addXHTTPRequestInfoHeader(req, token.SessionGUID, token.RequestID)
+	req.Header.Add("Accept", "application/json")
+	req.Header.Add("Content-Type", "application/json")
+
+	resBody, header, err := c.doAuthenticatedRequest(req, token, http.StatusCreated)
+	if err != nil {
+		return "", err
+	}
+
+	var session Session
+	if err := json.NewDecoder(resBody).Decode(&session); err != nil {
+		return "", err
+	}
+
+	if session.SessionTanActive {
+		/*
+			TODO:
+				if (header.typ==="P_TAN") {
+					var image = 'data:image/png;base64,';
+					image += header.challenge;
+					var template = `<img src={{{data}}}></img>`;
+					pm.visualizer.set(template, {data: image});
+				}
+		*/
+		challengeHeader := header.Get("x-once-authentication-info")
+		if challengeHeader == "" {
+			return "", fmt.Errorf("missing x-once-authentication-info header")
+		}
+		var challenge xOnceAuthenticationInfo
+		if err := json.Unmarshal([]byte(challengeHeader), &challenge); err != nil {
+			return "", err
+		}
+
+		if challenge.ChallengeID == "" {
+			return "", fmt.Errorf("missing challenge id in x-once-authentication-info header")
+		}
+
+		return challenge.ChallengeID, nil
+	}
+
+	return "", fmt.Errorf("session tan not active")
+}
+
+func (c *Client) ActivateSession(token *AuthToken, sessionID string, challengeId string) (*Session, error) {
+	slog.Debug("Activating session")
+	currentSession := Session{Identifier: sessionID}
+	currentSession.Activated2FA = true
+	currentSession.SessionTanActive = true
+
+	url := fmt.Sprintf("%s/session/clients/user/v1/sessions/%s", c.config.APIURL, currentSession.Identifier)
 	payload, err := json.Marshal(currentSession)
 	if err != nil {
 		return nil, err
 	}
 	body := strings.NewReader(string(payload))
-	req, err := http.NewRequest(http.MethodPost, url, body)
+	req, err := http.NewRequest(http.MethodPatch, url, body)
 	if err != nil {
 		return nil, err
 	}
 
-	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token.AccessToken))
+	addXHTTPRequestInfoHeader(req, token.SessionGUID, token.RequestID)
+	addXOnceAuthenticationInfoHeader(req, challengeId)
+	addXOnceAuthenticationHeader(req, "000000")
 	req.Header.Add("Accept", "application/json")
 	req.Header.Add("Content-Type", "application/json")
-	req.Header.Add("x-http-request-info", fmt.Sprintf("{\"clientRequestId\":{\"sessionId\":\"%s\",\"requestId\":\"%s\"}}", token.SessionGUID, token.RequestID))
 
-	res, err := c.client.Do(req)
+	resBody, _, err := c.doAuthenticatedRequest(req, token, http.StatusOK)
 	if err != nil {
 		return nil, err
 	}
 
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusOK {
-		return nil, handleRequestError(res)
-	}
-
-	var session interface{}
-	if err := json.NewDecoder(res.Body).Decode(&session); err != nil {
+	var session Session
+	if err := json.NewDecoder(resBody).Decode(&session); err != nil {
 		return nil, err
 	}
+	if !session.SessionTanActive {
+		return nil, fmt.Errorf("session tan not active")
+	}
 
-	return session, nil
+	return &session, nil
 }
 
 func (c *Client) ensureValidToken(token *AuthToken) error {
@@ -198,9 +238,4 @@ func (c *Client) ensureValidToken(token *AuthToken) error {
 		token = newToken
 	}
 	return nil
-}
-
-func requestID() string {
-	time := time.Now()
-	return fmt.Sprintf("%d", time.UnixMilli())[10:]
 }
