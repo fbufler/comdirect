@@ -1,0 +1,46 @@
+name: release-main
+
+on:
+  push:
+    tags:
+      - "*"
+
+env:
+  GOPATH: /go_path
+  GOCACHE: /go_cache
+
+jobs:
+  release-image:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # all history for all branches and tags
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          check-latest: true
+
+      - name: Calculate hash for Go files
+        id: hash-go
+        run: echo "::set-output name=hash::$(sha256sum go.mod go.sum | sha256sum | cut -d' ' -f1)"
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            /go_path
+            /go_cache
+          key: go_path-${{ steps.hash-go.outputs.hash }}
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

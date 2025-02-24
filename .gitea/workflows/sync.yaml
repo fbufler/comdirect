@@ -1,0 +1,38 @@
+name: sync-main-to-github
+
+on:
+  push:
+    tags:
+      - "*"
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # all history for all branches and tags
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "fbufler"
+          git config --global user.email "fbufler@fbufler.com"
+          git remote add github "https://${{secrets.REAL_GITHUB_TOKEN}}@github.com/fbufler/comdirect.git"
+
+      - name: Rebase
+        run: |        
+          git fetch github
+          git rebase github/main main  
+
+      - name: Prepare GitHub files
+        run: |
+          mv .goreleaser.github.yaml .goreleaser.yaml
+          rm -rf .gitea
+          git add .
+          git commit -m "Synchronisation tasks" || echo "No changes to commit"
+
+      - name: Push to Github
+        run: |          
+          git push github main
