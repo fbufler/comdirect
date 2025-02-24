@@ -31,15 +31,24 @@ func (p *Projection) queryParams() []string {
 	return params
 }
 
+type AccountBalancesOptions struct {
+	ExludeAccount bool
+}
+
+func (o *AccountBalancesOptions) queryParams() []string {
+	queryParams := []string{}
+	if o.ExludeAccount {
+		queryParams = append(queryParams, fmt.Sprintf("%s=%s", excludeProperty, "account"))
+	}
+	return queryParams
+}
+
 // AccountBalances returns the balances of all accounts of the user.
-// A projection can be used to include or exclude certain properties.
-// Allowed projection properties are:
-// - ExcludeProperties: "account"
 // For more information see https://www.comdirect.de/cms/media/comdirect_REST_API_Dokumentation.pdf
-func (c *Client) AccountBalances(token *AuthToken, projection *Projection) (*AccountBalances, error) {
+func (c *Client) AccountBalances(token *AuthToken, options *AccountBalancesOptions) (*AccountBalances, error) {
 	url := fmt.Sprintf("%s/banking/clients/user/v2/accounts/balances", c.config.APIURL)
-	if projection != nil {
-		queryParams := projection.queryParams()
+	if options != nil {
+		queryParams := options.queryParams()
 		if len(queryParams) > 0 {
 			url += fmt.Sprintf("?%s", strings.Join(queryParams, "&"))
 		}
@@ -100,19 +109,29 @@ const (
 	TransactionStateNotBooked TransactionState = "NOTBOOKED"
 )
 
+type AccountTransactionOptions struct {
+	IncludeAccount   bool
+	TransactionState TransactionState
+}
+
+func (o *AccountTransactionOptions) queryParams() []string {
+	queryParams := []string{}
+	if o.IncludeAccount {
+		queryParams = append(queryParams, fmt.Sprintf("%s=%s", includeProperty, "account"))
+	}
+	return queryParams
+}
+
 // AccountTransactions returns the transactions of a specific account.
-// A projection can be used to include or exclude certain properties.
-// Allowed projection properties are:
-// - IncludeProperties: "account"
 // For more information see https://www.comdirect.de/cms/media/comdirect_REST_API_Dokumentation.pdf
-func (c *Client) AccountTransactions(token *AuthToken, accountID string, transactionState TransactionState, projection *Projection) (*AccountTransactions, error) {
+func (c *Client) AccountTransactions(token *AuthToken, accountID string, transactionState TransactionState, options *AccountTransactionOptions) (*AccountTransactions, error) {
 	url := fmt.Sprintf("%s/banking/v1/accounts/%s/transactions", c.config.APIURL, accountID)
 
 	queryParams := []string{
 		fmt.Sprintf("transactionState=%s", transactionState),
 	}
-	if projection != nil {
-		queryParams = append(queryParams, projection.queryParams()...)
+	if options != nil {
+		queryParams = append(queryParams, options.queryParams()...)
 	}
 
 	url += fmt.Sprintf("?%s", strings.Join(queryParams, "&"))

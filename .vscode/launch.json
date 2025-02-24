@@ -10,6 +10,7 @@
             "request": "launch",
             "mode": "auto",
             "program": "${workspaceFolder}/cmd",
+            "args": ["e2e"],
             "console": "integratedTerminal"
         }
     ]

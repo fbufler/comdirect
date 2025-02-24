@@ -56,32 +56,63 @@ func e2e() {
 		panic(err)
 	}
 
-	// Get account balances
-	slog.Info("Getting account balances")
-	accountBalances, err := client.AccountBalances(token, nil)
+	// // Get account balances
+	// slog.Info("Getting account balances")
+	// accountBalances, err := client.AccountBalances(token, nil)
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// slog.Info(fmt.Sprintf("Account balances: %v", accountBalances))
+
+	// // Get account balance
+	// slog.Info("Getting account balance")
+	// relevantAccountID := accountBalances.Values[1].AccountID
+	// accountBalance, err := client.AccountBalance(token, relevantAccountID)
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// slog.Info(fmt.Sprintf("Account balance: %v", accountBalance))
+
+	// // Get transactions
+	// slog.Info("Getting transactions")
+	// transactions, err := client.AccountTransactions(token, relevantAccountID, comdirect.TransactionStateBooked, nil)
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// slog.Info(fmt.Sprintf("Transactions: %v", transactions))
+
+	// Get depots
+	// TODO: Fix panic: request failed with status code 406
+	slog.Info("Getting depots")
+	depots, err := client.Depots(token)
 	if err != nil {
 		panic(err)
 	}
+	slog.Info(fmt.Sprintf("Depots: %v", depots))
 
-	slog.Info(fmt.Sprintf("Account balances: %v", accountBalances))
-
-	// Get account balance
-	slog.Info("Getting account balance")
-	relevantAccountID := accountBalances.Values[1].AccountID
-	accountBalance, err := client.AccountBalance(token, relevantAccountID)
+	// Get depot positions
+	slog.Info("Getting depot positions")
+	depotPositions, err := client.DepotPositions(token, depots.Values[0].DepotID, nil)
 	if err != nil {
 		panic(err)
 	}
-	slog.Info(fmt.Sprintf("Account balance: %v", accountBalance))
+	slog.Info(fmt.Sprintf("Depot positions: %v", depotPositions))
 
-	// Get transactions
-	slog.Info("Getting transactions")
-	transactions, err := client.AccountTransactions(token, relevantAccountID, comdirect.TransactionStateBooked, nil)
+	// Get depot position
+	slog.Info("Getting depot position")
+	depotPosition, err := client.DepotPosition(token, depotPositions.Values[0].DepotID, depotPositions.Values[0].PositionID, nil)
 	if err != nil {
 		panic(err)
 	}
+	slog.Info(fmt.Sprintf("Depot position: %v", depotPosition))
 
-	slog.Info(fmt.Sprintf("Transactions: %v", transactions))
+	// Get depot transactions
+	slog.Info("Getting depot transactions")
+	depotTransactions, err := client.DepotTransactions(token, depots.Values[0].DepotID, nil)
+	if err != nil {
+		panic(err)
+	}
+	slog.Info(fmt.Sprintf("Depot transactions: %v", depotTransactions))
 
 	// Revoke token
 	slog.Info("Revoking token")

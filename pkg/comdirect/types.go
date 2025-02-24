@@ -138,3 +138,117 @@ type AccountTransactionType struct {
 	Key  string `json:"key"`
 	Text string `json:"text"`
 }
+
+type Depots struct {
+	Paging Paging  `json:"paging"`
+	Values []Depot `json:"values"`
+}
+
+type Depot struct {
+	DepotID                    string   `json:"depotId"`
+	DepotDisplayID             string   `json:"depotDisplayId"`
+	ClientID                   string   `json:"clientId"`
+	DepotType                  string   `json:"depotType"`
+	DefaultSettlementAccountID string   `json:"defaultSettlementAccountId"`
+	SettlementAccountIDs       []string `json:"settlementAccountIds"`
+	TargetMarket               string   `json:"targetMarket"`
+}
+
+type DepotPositions struct {
+	Paging              Paging                   `json:"paging"`
+	AggregatedPositions AggregatedDepotPositions `json:"aggregated"`
+	Values              []DepotPosition          `json:"values"`
+}
+
+type AggregatedDepotPositions struct {
+	Depot                      Depot   `json:"depot"`
+	PrevDayValue               Balance `json:"prevDayValue"`
+	CurrentValue               Balance `json:"currentValue"`
+	PurchaseValue              Balance `json:"purchaseValue"`
+	ProfitLossPurchaseAbs      Balance `json:"profitLossPurchaseAbs"`
+	ProfitLossPurchaseRel      string  `json:"profitLossPurchaseRel"`
+	ProfitLossPrevDayAbs       Balance `json:"profitLossPrevDayAbs"`
+	ProfitLossPrevDayRel       string  `json:"profitLossPrevDayRel"`
+	ProfitLossPrevDayTotalAbs  Balance `json:"profitLossPrevDayTotalAbs"`
+	PurchaseValuesAlterable    bool    `json:"purchaseValuesAlterable"`
+	ProfitLossPrevDayTotalRel  string  `json:"profitLossPrevDayTotalRel"`
+	ProfitLossPurchaseTotalAbs Balance `json:"profitLossPurchaseTotalAbs"`
+	ProfitLossPurchaseTotalRel string  `json:"profitLossPurchaseTotalRel"`
+}
+
+type DepotPosition struct {
+	DepotID                   string  `json:"depotId"`
+	PositionID                string  `json:"positionId"`
+	WKN                       string  `json:"wkn"`
+	CustodyType               string  `json:"custodyType"`
+	Quantity                  Balance `json:"quantity"`
+	AvailableQuantity         Balance `json:"availableQuantity"`
+	CurrentPrice              Price   `json:"currentPrice"`
+	PurchasePrice             Balance `json:"purchasePrice"`
+	PrevDayPrice              Price   `json:"prevDayPrice"`
+	CurrentValue              Balance `json:"currentValue"`
+	PurchaseValue             Balance `json:"purchaseValue"`
+	ProfitLossPurchaseAbs     Balance `json:"profitLossPurchaseAbs"`
+	ProfitLossPurchaseRel     string  `json:"profitLossPurchaseRel"`
+	ProfitLossPrevDayAbs      Balance `json:"profitLossPrevDayAbs"`
+	ProfitLossPrevDayRel      string  `json:"profitLossPrevDayRel"`
+	ProfitLossPrevDayTotalAbs Balance `json:"profitLossPrevDayTotalAbs"`
+	Version                   string  `json:"version"`
+	Hedgeability              string  `json:"hedgeability"`
+	AvailableQuantityToHedge  Balance `json:"availableQuantityToHedge"`
+	CurrentPriceDeterminable  bool    `json:"currentPriceDeterminable"`
+	HasIntraDayExecutedOrder  bool    `json:"hasIntraDayExecutedOrder"`
+}
+
+type Price struct {
+	Price         Balance `json:"price"`
+	PriceDateTime string  `json:"priceDateTime"`
+	Venue         Venue   `json:"venue"`
+}
+
+type Venue struct {
+	Name    string `json:"name"`
+	VenueID string `json:"venueId"`
+	Country string `json:"country"`
+	Type    string `json:"type"`
+}
+
+type DepotTransactions struct {
+	Paging Paging             `json:"paging"`
+	Values []DepotTransaction `json:"values"`
+}
+
+type DepotTransaction struct {
+	TransactionID        string     `json:"transactionId"`
+	BookingStatus        string     `json:"bookingStatus"`
+	BookingDate          string     `json:"bookingDate"`
+	BusinessDate         string     `json:"businessDate"`
+	Quantity             Balance    `json:"quantity"`
+	InstrumentID         string     `json:"instrumentId"`
+	Instrument           Instrument `json:"instrument"`
+	ExecutionPrice       Price      `json:"executionPrice"`
+	TransactionValue     Balance    `json:"transactionValue"`
+	TransactionDirection string     `json:"transactionDirection"`
+	TransactionType      string     `json:"transactionType"`
+}
+
+type Instrument struct {
+	InstrumentID string               `json:"instrumentId"`
+	WKN          string               `json:"wkn"`
+	ISIN         string               `json:"isin"`
+	Mnemonic     string               `json:"mnemonic"`
+	Name         string               `json:"name"`
+	ShortHand    string               `json:"shortName"`
+	StaticData   StaticInstrumentData `json:"staticData"`
+}
+
+type StaticInstrumentData struct {
+	Notation               string `json:"notation"`
+	Currency               string `json:"currency"`
+	InstrumentType         string `json:"instrumentType"`
+	PriipsRelevant         bool   `json:"priipsRelevant"`
+	KIDAvailable           bool   `json:"kidAvailable"`
+	ShippingWaiverRequired bool   `json:"shippingWaiverRequired"`
+	FundRedemptionLimited  bool   `json:"fundRedemptionLimited"`
+	SavingsPlanEligibility string `json:"savingsPlanEligibility"`
+}
