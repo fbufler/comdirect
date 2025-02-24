@@ -28,13 +28,13 @@ func e2e() {
 	cfg := config.Get()
 	// create config
 	config := comdirect.Config{
-		APIURL:         cfg.APIURL,
-		TokenURL:       cfg.TokenURL,
-		RevokeTokenURL: cfg.RevokeTokenURL,
-		ClientID:       cfg.ClientID,
-		ClientSecret:   cfg.ClientSecret,
-		Zugangsnummer:  cfg.Zugangsnummer,
-		Pin:            cfg.Pin,
+		APIURL:         cfg.Client.APIURL,
+		TokenURL:       cfg.Client.TokenURL,
+		RevokeTokenURL: cfg.Client.RevokeTokenURL,
+		ClientID:       cfg.Client.ClientID,
+		ClientSecret:   cfg.Client.ClientSecret,
+		Zugangsnummer:  cfg.Client.Zugangsnummer,
+		Pin:            cfg.Client.Pin,
 	}
 
 	fmt.Println(config)

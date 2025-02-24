@@ -110,8 +110,7 @@ const (
 )
 
 type AccountTransactionOptions struct {
-	IncludeAccount   bool
-	TransactionState TransactionState
+	IncludeAccount bool
 }
 
 func (o *AccountTransactionOptions) queryParams() []string {
