@@ -26,7 +26,7 @@ func bootstrap(cfg *config.Config) (*comdirect.Client, *comdirect.AuthToken, err
 	cache := cache.NewCache(cfg.Cli.StoragePath, cfg.Cli.EncryptionKey)
 
 	token, err := loadCache(cfg)
-	if token != nil {
+	if token != nil && !token.IsExpired() {
 		return client, token, nil
 	}
 

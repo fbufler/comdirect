@@ -34,7 +34,25 @@ func setDefaults() {
 	viper.SetDefault("client.token-url", "https://api.comdirect.de/oauth/token")
 	viper.SetDefault("client.revoke-token-url", "https://api.comdirect.de/oauth/revoke")
 	viper.SetDefault("cli.enable-cache", false)
-	viper.SetDefault("cli.storage-path", os.TempDir()+"/token-cache")
+	viper.SetDefault("cli.storage-path", cliStoragePath())
+}
+
+func cliStoragePath() string {
+	if cfg.Cli.StoragePath != "" {
+		return cfg.Cli.StoragePath
+	}
+	if os.Getenv("OS") == "Windows_NT" {
+		return windowsCliStoragePath()
+	}
+	return unixCliStoragePath()
+}
+
+func windowsCliStoragePath() string {
+	return os.TempDir() + "\\token-cache"
+}
+
+func unixCliStoragePath() string {
+	return os.TempDir() + "/token-cache"
 }
 
 var cfg Config = Config{}
@@ -42,9 +60,10 @@ var cfg Config = Config{}
 func init() {
 	viper.SetConfigType("yaml")
 	viper.SetConfigName("config")
-	viper.AddConfigPath(".")
-	viper.AddConfigPath("$HOME/.comdirect")
-	viper.AddConfigPath("/etc/comdirect")
+	configPaths := configPaths()
+	for _, path := range configPaths {
+		viper.AddConfigPath(path)
+	}
 	viper.AutomaticEnv()
 	setDefaults()
 	err := viper.ReadInConfig()
@@ -67,6 +86,28 @@ func init() {
 	}
 }
 
+func configPaths() []string {
+	if os.Getenv("OS") == "Windows_NT" {
+		return windowsConfigPaths()
+	}
+	return unixConfigPaths()
+}
+
+func windowsConfigPaths() []string {
+	return []string{
+		"C:\\ProgramData\\comdirect",
+		"C:\\Users\\%USERNAME%\\AppData\\Roaming\\comdirect",
+		".",
+	}
+}
+
+func unixConfigPaths() []string {
+	return []string{
+		"/etc/comdirect",
+		"$HOME/.comdirect",
+		".",
+	}
+}
 func Get() *Config {
 	return &cfg
 }
