@@ -4,10 +4,13 @@ on:
   push:
     tags:
       - "*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release'
+        required: true
+        default: ''
 
-env:
-  GOPATH: /go_path
-  GOCACHE: /go_cache
 
 jobs:
   release-image:
@@ -17,24 +20,12 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0 # all history for all branches and tags
-
+          ref: ${{ github.event.inputs.tag }}
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           check-latest: true
-
-      - name: Calculate hash for Go files
-        id: hash-go
-        run: echo "::set-output name=hash::$(sha256sum go.mod go.sum | sha256sum | cut -d' ' -f1)"
-
-      - name: Cache Go modules
-        uses: actions/cache@v4
-        with:
-          path: |
-            /go_path
-            /go_cache
-          key: go_path-${{ steps.hash-go.outputs.hash }}
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
