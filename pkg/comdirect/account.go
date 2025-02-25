@@ -111,12 +111,16 @@ const (
 
 type AccountTransactionOptions struct {
 	IncludeAccount bool
+	PagingFirst    int
 }
 
 func (o *AccountTransactionOptions) queryParams() []string {
 	queryParams := []string{}
 	if o.IncludeAccount {
 		queryParams = append(queryParams, fmt.Sprintf("%s=%s", includeProperty, "account"))
+	}
+	if o.PagingFirst > 0 {
+		queryParams = append(queryParams, fmt.Sprintf("paging-first=%d", o.PagingFirst))
 	}
 	return queryParams
 }
@@ -154,4 +158,43 @@ func (c *Client) AccountTransactions(token *AuthToken, accountID string, transac
 	}
 
 	return &accountTransactions, nil
+}
+
+const pageSize = 20
+
+func (c *Client) PaginatedAccountTransactions(token *AuthToken, accountID string, amount int, options *AccountTransactionOptions) (*AccountTransactions, error) {
+	firstPage, err := c.AccountTransactions(token, accountID, TransactionStateBooked, options)
+	if err != nil {
+		return nil, err
+	}
+
+	transactions := []*AccountTransactions{firstPage}
+	for len(transactions) < amount/pageSize {
+		options.PagingFirst = len(transactions) * pageSize
+		page, err := c.AccountTransactions(token, accountID, TransactionStateBooked, options)
+		if err != nil {
+			return nil, err
+		}
+		if len(page.Values) == 0 {
+			break
+		}
+		transactions = append(transactions, page)
+	}
+
+	return &AccountTransactions{
+		Paging: Paging{
+			Index:   0,
+			Matches: len(transactions) * pageSize,
+		},
+		AggregatedTransactions: firstPage.AggregatedTransactions,
+		Values:                 flattenTransactions(transactions),
+	}, nil
+}
+
+func flattenTransactions(transactions []*AccountTransactions) []AccountTransaction {
+	var flattened []AccountTransaction
+	for _, page := range transactions {
+		flattened = append(flattened, page.Values...)
+	}
+	return flattened
 }

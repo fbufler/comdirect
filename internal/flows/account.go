@@ -69,3 +69,26 @@ func AccountTransactions(cfg *config.Config, accountID string, transactionState 
 
 	return string(data), nil
 }
+
+func PaginatedAccountTransactions(cfg *config.Config, accountID string, amount int, includeAccount bool) (string, error) {
+	options := &comdirect.AccountTransactionOptions{
+		IncludeAccount: includeAccount,
+		PagingFirst:    amount,
+	}
+	client, token, err := bootstrap(cfg)
+	if err != nil {
+		return "", err
+	}
+
+	transactions, err := client.PaginatedAccountTransactions(token, accountID, amount, options)
+	if err != nil {
+		return "", err
+	}
+
+	data, err := json.Marshal(transactions)
+	if err != nil {
+		return "", err
+	}
+
+	return string(data), nil
+}

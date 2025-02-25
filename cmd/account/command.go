@@ -3,6 +3,7 @@ package account
 import (
 	"fmt"
 	"log/slog"
+	"strconv"
 
 	"github.com/fbufler/comdirect/config"
 	"github.com/fbufler/comdirect/internal/convert"
@@ -70,10 +71,27 @@ func transactions(cmd *cobra.Command, args []string) {
 	accountID := args[0]
 	transactionState := comdirect.TransactionState(cmd.Flag("state").Value.String())
 	includeAccount := cmd.Flag("include-account").Changed
-	data, err := flows.AccountTransactions(cfg, accountID, transactionState, includeAccount)
-	if err != nil {
-		cmd.PrintErrln(err)
-		return
+	countInput := cmd.Flag("count").Value.String()
+
+	var data string
+	var err error
+	if countInput != "" {
+		count, err := strconv.Atoi(countInput)
+		if err != nil {
+			cmd.PrintErrln(err)
+			return
+		}
+		data, err = flows.PaginatedAccountTransactions(cfg, accountID, count, includeAccount)
+		if err != nil {
+			cmd.PrintErrln(err)
+			return
+		}
+	} else {
+		data, err = flows.AccountTransactions(cfg, accountID, transactionState, includeAccount)
+		if err != nil {
+			cmd.PrintErrln(err)
+			return
+		}
 	}
 	handleOutput(cmd, data)
 }
@@ -105,4 +123,5 @@ func init() {
 	balancesCmd.Flags().BoolP("exclude-account", "e", false, "Exclude Account")
 	transactionsCmd.Flags().StringP("state", "s", string(comdirect.TransactionStateBoth), "Transaction State (BOTH, BOOKED, NOTBOOKED)")
 	transactionsCmd.Flags().BoolP("include-account", "i", false, "Include Account")
+	transactionsCmd.Flags().StringP("count", "c", "", "Amount of Transactions, by default 20")
 }
