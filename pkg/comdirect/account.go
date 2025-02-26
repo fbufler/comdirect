@@ -4,32 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
 )
 
 const (
 	includeProperty = "with-attr"
 	excludeProperty = "without-attr"
 )
-
-type Projection struct {
-	IncludeProperties []string
-	ExcludeProperties []string
-}
-
-func (p *Projection) queryParams() []string {
-	var params []string
-
-	if len(p.IncludeProperties) > 0 {
-		params = append(params, fmt.Sprintf("%s=%s", includeProperty, strings.Join(p.IncludeProperties, ",")))
-	}
-
-	if len(p.ExcludeProperties) > 0 {
-		params = append(params, fmt.Sprintf("%s=%s", excludeProperty, strings.Join(p.ExcludeProperties, ",")))
-	}
-
-	return params
-}
 
 type AccountBalancesOptions struct {
 	ExludeAccount bool
@@ -48,10 +28,7 @@ func (o *AccountBalancesOptions) queryParams() []string {
 func (c *Client) AccountBalances(token *AuthToken, options *AccountBalancesOptions) (*AccountBalances, error) {
 	url := fmt.Sprintf("%s/banking/clients/user/v2/accounts/balances", c.config.APIURL)
 	if options != nil {
-		queryParams := options.queryParams()
-		if len(queryParams) > 0 {
-			url += fmt.Sprintf("?%s", strings.Join(queryParams, "&"))
-		}
+		url = addQueryParams(url, options)
 	}
 
 	req, err := http.NewRequest(http.MethodGet, url, nil)
@@ -62,7 +39,7 @@ func (c *Client) AccountBalances(token *AuthToken, options *AccountBalancesOptio
 	addXHTTPRequestInfoHeader(req, token.SessionGUID, token.RequestID)
 	req.Header.Add("Accept", "application/json")
 
-	resBody, _, err := c.doAuthenticatedRequest(req, token, http.StatusOK)
+	resBody, _, err := c.authenticatedRequest(req, token, http.StatusOK)
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +65,7 @@ func (c *Client) AccountBalance(token *AuthToken, accountID string) (*AccountBal
 	addXHTTPRequestInfoHeader(req, token.SessionGUID, token.RequestID)
 	req.Header.Add("Accept", "application/json")
 
-	resBody, _, err := c.doAuthenticatedRequest(req, token, http.StatusOK)
+	resBody, _, err := c.authenticatedRequest(req, token, http.StatusOK)
 	if err != nil {
 		return nil, err
 	}
@@ -110,8 +87,9 @@ const (
 )
 
 type AccountTransactionOptions struct {
-	IncludeAccount bool
-	PagingFirst    int
+	IncludeAccount   bool
+	PagingFirst      int
+	TransactionState TransactionState
 }
 
 func (o *AccountTransactionOptions) queryParams() []string {
@@ -122,22 +100,22 @@ func (o *AccountTransactionOptions) queryParams() []string {
 	if o.PagingFirst > 0 {
 		queryParams = append(queryParams, fmt.Sprintf("paging-first=%d", o.PagingFirst))
 	}
+	if o.TransactionState != "" {
+		queryParams = append(queryParams, fmt.Sprintf("transactionState=%s", o.TransactionState))
+	} else {
+		queryParams = append(queryParams, fmt.Sprintf("transactionState=%s", TransactionStateBoth))
+	}
 	return queryParams
 }
 
 // AccountTransactions returns the transactions of a specific account.
 // For more information see https://www.comdirect.de/cms/media/comdirect_REST_API_Dokumentation.pdf
-func (c *Client) AccountTransactions(token *AuthToken, accountID string, transactionState TransactionState, options *AccountTransactionOptions) (*AccountTransactions, error) {
+func (c *Client) AccountTransactions(token *AuthToken, accountID string, options *AccountTransactionOptions) (*AccountTransactions, error) {
 	url := fmt.Sprintf("%s/banking/v1/accounts/%s/transactions", c.config.APIURL, accountID)
 
-	queryParams := []string{
-		fmt.Sprintf("transactionState=%s", transactionState),
-	}
 	if options != nil {
-		queryParams = append(queryParams, options.queryParams()...)
+		addQueryParams(url, options)
 	}
-
-	url += fmt.Sprintf("?%s", strings.Join(queryParams, "&"))
 
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
@@ -147,7 +125,7 @@ func (c *Client) AccountTransactions(token *AuthToken, accountID string, transac
 	addXHTTPRequestInfoHeader(req, token.SessionGUID, token.RequestID)
 	req.Header.Add("Accept", "application/json")
 
-	resBody, _, err := c.doAuthenticatedRequest(req, token, http.StatusOK)
+	resBody, _, err := c.authenticatedRequest(req, token, http.StatusOK)
 	if err != nil {
 		return nil, err
 	}
@@ -160,18 +138,20 @@ func (c *Client) AccountTransactions(token *AuthToken, accountID string, transac
 	return &accountTransactions, nil
 }
 
-const pageSize = 20
-
 func (c *Client) PaginatedAccountTransactions(token *AuthToken, accountID string, amount int, options *AccountTransactionOptions) (*AccountTransactions, error) {
-	firstPage, err := c.AccountTransactions(token, accountID, TransactionStateBooked, options)
+	if options == nil {
+		options = &AccountTransactionOptions{}
+	}
+	options.TransactionState = TransactionStateBooked
+	firstPage, err := c.AccountTransactions(token, accountID, options)
 	if err != nil {
 		return nil, err
 	}
 
 	transactions := []*AccountTransactions{firstPage}
-	for len(transactions) < amount/pageSize {
-		options.PagingFirst = len(transactions) * pageSize
-		page, err := c.AccountTransactions(token, accountID, TransactionStateBooked, options)
+	for len(transactions) < amount/globalPageSize {
+		options.PagingFirst = len(transactions) * globalPageSize
+		page, err := c.AccountTransactions(token, accountID, options)
 		if err != nil {
 			return nil, err
 		}
@@ -184,7 +164,7 @@ func (c *Client) PaginatedAccountTransactions(token *AuthToken, accountID string
 	return &AccountTransactions{
 		Paging: Paging{
 			Index:   0,
-			Matches: len(transactions) * pageSize,
+			Matches: len(transactions) * globalPageSize,
 		},
 		AggregatedTransactions: firstPage.AggregatedTransactions,
 		Values:                 flattenTransactions(transactions),

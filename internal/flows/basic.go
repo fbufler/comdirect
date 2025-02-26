@@ -11,7 +11,7 @@ import (
 	"github.com/fbufler/comdirect/pkg/comdirect"
 )
 
-func bootstrap(cfg *config.Config) (*comdirect.Client, *comdirect.AuthToken, error) {
+func Bootstrap(cfg *config.Config) (*comdirect.Client, *comdirect.AuthToken, error) {
 	config := comdirect.Config{
 		APIURL:         cfg.Client.APIURL,
 		TokenURL:       cfg.Client.TokenURL,

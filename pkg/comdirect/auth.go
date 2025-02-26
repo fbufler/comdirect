@@ -128,7 +128,7 @@ func (c *Client) RevokeToken(token *AuthToken) error {
 
 	req.Header.Add("Accept", "application/json")
 
-	_, _, err = c.doAuthenticatedRequest(req, token, http.StatusNoContent)
+	_, _, err = c.authenticatedRequest(req, token, http.StatusNoContent)
 	if err != nil {
 		return err
 	}
@@ -193,7 +193,7 @@ func (c *Client) sessions(token *AuthToken) ([]session, error) {
 	req.Header.Add("Accept", "application/json")
 	req.Header.Add("Cookie", fmt.Sprintf("qSession=%s", token.SessionGUID))
 
-	resBody, _, err := c.doAuthenticatedRequest(req, token, http.StatusOK)
+	resBody, _, err := c.authenticatedRequest(req, token, http.StatusOK)
 	if err != nil {
 		return nil, err
 	}
@@ -227,7 +227,7 @@ func (c *Client) validateSession(token *AuthToken, sessionID string) (*TANHeader
 	req.Header.Add("Accept", "application/json")
 	req.Header.Add("Content-Type", "application/json")
 
-	resBody, header, err := c.doAuthenticatedRequest(req, token, http.StatusCreated)
+	resBody, header, err := c.authenticatedRequest(req, token, http.StatusCreated)
 	if err != nil {
 		return nil, err
 	}
@@ -280,7 +280,7 @@ func (c *Client) activateSession(token *AuthToken, sessionID string, challengeId
 	req.Header.Add("Accept", "application/json")
 	req.Header.Add("Content-Type", "application/json")
 
-	resBody, _, err := c.doAuthenticatedRequest(req, token, http.StatusOK)
+	resBody, _, err := c.authenticatedRequest(req, token, http.StatusOK)
 	if err != nil {
 		return nil, err
 	}

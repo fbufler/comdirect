@@ -6,10 +6,13 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 )
 
-func (c *Client) doAuthenticatedRequest(req *http.Request, token *AuthToken, expectedStatus int) (io.Reader, *http.Header, error) {
+const globalPageSize = 20
+
+func (c *Client) authenticatedRequest(req *http.Request, token *AuthToken, expectedStatus int) (io.Reader, *http.Header, error) {
 	c.ensureValidToken(token)
 	addAuthorizationHeader(req, token)
 	c.newAuthenticatedRequest()
@@ -41,6 +44,18 @@ func (c *Client) newAuthenticatedRequest() {
 	if c.requestMonitor[currentTimeToSecond] > c.requestLimitPerSecond {
 		slog.Warn(fmt.Sprintf("Reaching request limit of %d for current second: %s", c.requestLimitPerSecond, currentTimeToSecond))
 	}
+}
+
+type options interface {
+	queryParams() []string
+}
+
+func addQueryParams(url string, options options) string {
+	queryParams := []string{}
+	if options != nil {
+		queryParams = append(queryParams, options.queryParams()...)
+	}
+	return fmt.Sprintf("%s?%s", url, strings.Join(queryParams, "&"))
 }
 
 func handleRequestError(res *http.Response) error {

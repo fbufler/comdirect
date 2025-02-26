@@ -11,7 +11,7 @@ func AccountBalances(cfg *config.Config, excludeAccount bool) (string, error) {
 	options := &comdirect.AccountBalancesOptions{
 		ExludeAccount: excludeAccount,
 	}
-	client, token, err := bootstrap(cfg)
+	client, token, err := Bootstrap(cfg)
 	if err != nil {
 		return "", err
 	}
@@ -30,7 +30,7 @@ func AccountBalances(cfg *config.Config, excludeAccount bool) (string, error) {
 }
 
 func AccountBalance(cfg *config.Config, accountID string) (string, error) {
-	client, token, err := bootstrap(cfg)
+	client, token, err := Bootstrap(cfg)
 	if err != nil {
 		return "", err
 	}
@@ -50,14 +50,15 @@ func AccountBalance(cfg *config.Config, accountID string) (string, error) {
 
 func AccountTransactions(cfg *config.Config, accountID string, transactionState comdirect.TransactionState, includeAccount bool) (string, error) {
 	options := &comdirect.AccountTransactionOptions{
-		IncludeAccount: includeAccount,
+		IncludeAccount:   includeAccount,
+		TransactionState: transactionState,
 	}
-	client, token, err := bootstrap(cfg)
+	client, token, err := Bootstrap(cfg)
 	if err != nil {
 		return "", err
 	}
 
-	transactions, err := client.AccountTransactions(token, accountID, transactionState, options)
+	transactions, err := client.AccountTransactions(token, accountID, options)
 	if err != nil {
 		return "", err
 	}
@@ -75,7 +76,7 @@ func PaginatedAccountTransactions(cfg *config.Config, accountID string, amount i
 		IncludeAccount: includeAccount,
 		PagingFirst:    amount,
 	}
-	client, token, err := bootstrap(cfg)
+	client, token, err := Bootstrap(cfg)
 	if err != nil {
 		return "", err
 	}

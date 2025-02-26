@@ -4,12 +4,27 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 )
 
-func (c *Client) Depots(authToken *AuthToken) (*Depots, error) {
+type DepotsOptions struct {
+	PagingFirst int
+}
+
+func (o *DepotsOptions) queryParams() []string {
+	queryParams := []string{}
+	if o.PagingFirst > 0 {
+		queryParams = append(queryParams, fmt.Sprintf("paging-first=%d", o.PagingFirst))
+	}
+	return queryParams
+}
+
+func (c *Client) Depots(authToken *AuthToken, options *DepotsOptions) (*Depots, error) {
 	url := fmt.Sprintf("%s/brokerage/clients/user/v3/depots", c.config.APIURL)
+
+	if options != nil {
+		addQueryParams(url, options)
+	}
 
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
@@ -19,7 +34,7 @@ func (c *Client) Depots(authToken *AuthToken) (*Depots, error) {
 	addXHTTPRequestInfoHeader(req, authToken.SessionGUID, authToken.RequestID)
 	req.Header.Add("Accept", "application/json")
 
-	resBody, _, err := c.doAuthenticatedRequest(req, authToken, http.StatusOK)
+	resBody, _, err := c.authenticatedRequest(req, authToken, http.StatusOK)
 	if err != nil {
 		return nil, err
 	}
@@ -32,12 +47,56 @@ func (c *Client) Depots(authToken *AuthToken) (*Depots, error) {
 	return &depots, nil
 }
 
-type DepotOptions struct {
-	IncludeInstrument bool
-	ExcludeDepot      bool
+func (c *Client) PaginatedDepots(authToken *AuthToken, amount int) (*Depots, error) {
+	options := &DepotsOptions{
+		PagingFirst: 0,
+	}
+	firstDepots, err := c.Depots(authToken, options)
+	if err != nil {
+		return nil, err
+	}
+
+	var data []Depots
+	data = append(data, *firstDepots)
+	for len(data) < amount/globalPageSize {
+		options.PagingFirst = len(data) * globalPageSize
+		page, err := c.Depots(authToken, options)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(page.Values) == 0 {
+			break
+		}
+
+		data = append(data, *page)
+	}
+
+	depots := flattenDepots(data)
+	return &depots, nil
 }
 
-func (o *DepotOptions) queryParams() []string {
+func flattenDepots(depots []Depots) Depots {
+	values := []Depot{}
+	for _, d := range depots {
+		values = append(values, d.Values...)
+	}
+	return Depots{
+		Paging: Paging{
+			Index:   0,
+			Matches: len(values),
+		},
+		Values: values,
+	}
+}
+
+type DepotPosistionsOptions struct {
+	IncludeInstrument bool
+	ExcludeDepot      bool
+	PagingFirst       int
+}
+
+func (o *DepotPosistionsOptions) queryParams() []string {
 	queryParams := []string{}
 	if o.IncludeInstrument {
 		queryParams = append(queryParams, fmt.Sprintf("%s=%s", includeProperty, "instrument"))
@@ -45,19 +104,19 @@ func (o *DepotOptions) queryParams() []string {
 	if o.ExcludeDepot {
 		queryParams = append(queryParams, fmt.Sprintf("%s=%s", excludeProperty, "depot"))
 	}
+	if o.PagingFirst > 0 {
+		queryParams = append(queryParams, fmt.Sprintf("paging-first=%d", o.PagingFirst))
+	}
 	return queryParams
 }
 
 // DepotPositions returns the positions of a depot.
 // For more information see https://www.comdirect.de/cms/media/comdirect_REST_API_Dokumentation.pdf
-func (c *Client) DepotPositions(authToken *AuthToken, depotID string, options *DepotOptions) (*DepotPositions, error) {
+func (c *Client) DepotPositions(authToken *AuthToken, depotID string, options *DepotPosistionsOptions) (*DepotPositions, error) {
 	url := fmt.Sprintf("%s/brokerage/v3/depots/%s/positions", c.config.APIURL, depotID)
 
 	if options != nil {
-		queryParams := options.queryParams()
-		if len(queryParams) > 0 {
-			url += fmt.Sprintf("?%s", strings.Join(queryParams, "&"))
-		}
+		addQueryParams(url, options)
 	}
 
 	req, err := http.NewRequest(http.MethodGet, url, nil)
@@ -68,7 +127,7 @@ func (c *Client) DepotPositions(authToken *AuthToken, depotID string, options *D
 	addXHTTPRequestInfoHeader(req, authToken.SessionGUID, authToken.RequestID)
 	req.Header.Add("Accept", "application/json")
 
-	resBody, _, err := c.doAuthenticatedRequest(req, authToken, http.StatusOK)
+	resBody, _, err := c.authenticatedRequest(req, authToken, http.StatusOK)
 	if err != nil {
 		return nil, err
 	}
@@ -79,6 +138,50 @@ func (c *Client) DepotPositions(authToken *AuthToken, depotID string, options *D
 	}
 
 	return &depotPositions, nil
+}
+
+func (c *Client) PaginatedDepotPositions(authToken *AuthToken, depotID string, amount int, options *DepotPosistionsOptions) (*DepotPositions, error) {
+	if options == nil {
+		options = &DepotPosistionsOptions{}
+	}
+	options.PagingFirst = 0
+	firstPositions, err := c.DepotPositions(authToken, depotID, options)
+	if err != nil {
+		return nil, err
+	}
+
+	var data []DepotPositions
+	data = append(data, *firstPositions)
+	for len(data) < amount/globalPageSize {
+		options.PagingFirst = len(data) * globalPageSize
+		page, err := c.DepotPositions(authToken, depotID, options)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(page.Values) == 0 {
+			break
+		}
+
+		data = append(data, *page)
+	}
+
+	positions := flattenDepotPositions(data)
+	return &positions, nil
+}
+
+func flattenDepotPositions(positions []DepotPositions) DepotPositions {
+	values := []DepotPosition{}
+	for _, p := range positions {
+		values = append(values, p.Values...)
+	}
+	return DepotPositions{
+		Paging: Paging{
+			Index:   0,
+			Matches: len(values),
+		},
+		Values: values,
+	}
 }
 
 type DepotPositionOptions struct {
@@ -99,10 +202,7 @@ func (c *Client) DepotPosition(authToken *AuthToken, depotID string, positionID 
 	url := fmt.Sprintf("%s/brokerage/v3/depots/%s/positions/%s", c.config.APIURL, depotID, positionID)
 
 	if options != nil {
-		queryParams := options.queryParams()
-		if len(queryParams) > 0 {
-			url += fmt.Sprintf("?%s", strings.Join(queryParams, "&"))
-		}
+		addQueryParams(url, options)
 	}
 
 	req, err := http.NewRequest(http.MethodGet, url, nil)
@@ -113,7 +213,7 @@ func (c *Client) DepotPosition(authToken *AuthToken, depotID string, positionID 
 	addXHTTPRequestInfoHeader(req, authToken.SessionGUID, authToken.RequestID)
 	req.Header.Add("Accept", "application/json")
 
-	resBody, _, err := c.doAuthenticatedRequest(req, authToken, http.StatusOK)
+	resBody, _, err := c.authenticatedRequest(req, authToken, http.StatusOK)
 	if err != nil {
 		return nil, err
 	}
@@ -140,6 +240,7 @@ type DepotTransactionOptions struct {
 	InstrumentId   string
 	BookingStatus  BookingStatus
 	MaxBookingDate time.Time
+	PagingFirst    int
 }
 
 func (dto *DepotTransactionOptions) queryParams() []string {
@@ -159,6 +260,9 @@ func (dto *DepotTransactionOptions) queryParams() []string {
 	if !dto.MaxBookingDate.IsZero() {
 		queryParams = append(queryParams, fmt.Sprintf("maxBookingDate=%s", dto.MaxBookingDate.Format("2006-01-02")))
 	}
+	if dto.PagingFirst > 0 {
+		queryParams = append(queryParams, fmt.Sprintf("paging-first=%d", dto.PagingFirst))
+	}
 	return queryParams
 }
 
@@ -166,10 +270,7 @@ func (c *Client) DepotTransactions(authToken *AuthToken, depotID string, options
 	url := fmt.Sprintf("%s/brokerage/v3/depots/%s/transactions", c.config.APIURL, depotID)
 
 	if options != nil {
-		queryParams := options.queryParams()
-		if len(queryParams) > 0 {
-			url += fmt.Sprintf("?%s", strings.Join(queryParams, "&"))
-		}
+		addQueryParams(url, options)
 	}
 
 	req, err := http.NewRequest(http.MethodGet, url, nil)
@@ -180,7 +281,7 @@ func (c *Client) DepotTransactions(authToken *AuthToken, depotID string, options
 	addXHTTPRequestInfoHeader(req, authToken.SessionGUID, authToken.RequestID)
 	req.Header.Add("Accept", "application/json")
 
-	resBody, _, err := c.doAuthenticatedRequest(req, authToken, http.StatusOK)
+	resBody, _, err := c.authenticatedRequest(req, authToken, http.StatusOK)
 	if err != nil {
 		return nil, err
 	}
@@ -191,4 +292,44 @@ func (c *Client) DepotTransactions(authToken *AuthToken, depotID string, options
 	}
 
 	return &depotTransactions, nil
+}
+
+func (c *Client) PaginatedDepotTransactions(authToken *AuthToken, depotID string, amount int, options *DepotTransactionOptions) (*DepotTransactions, error) {
+	if options == nil {
+		options = &DepotTransactionOptions{}
+	}
+	options.PagingFirst = 0
+	firstPage, err := c.DepotTransactions(authToken, depotID, options)
+	if err != nil {
+		return nil, err
+	}
+
+	transactions := []*DepotTransactions{firstPage}
+	for len(transactions) < amount/globalPageSize {
+		options.PagingFirst = len(transactions) * globalPageSize
+		page, err := c.DepotTransactions(authToken, depotID, options)
+		if err != nil {
+			return nil, err
+		}
+		if len(page.Values) == 0 {
+			break
+		}
+		transactions = append(transactions, page)
+	}
+
+	return &DepotTransactions{
+		Paging: Paging{
+			Index:   0,
+			Matches: len(transactions) * globalPageSize,
+		},
+		Values: flattenDepotTransactions(transactions),
+	}, nil
+}
+
+func flattenDepotTransactions(transactions []*DepotTransactions) []DepotTransaction {
+	var flattened []DepotTransaction
+	for _, t := range transactions {
+		flattened = append(flattened, t.Values...)
+	}
+	return flattened
 }
